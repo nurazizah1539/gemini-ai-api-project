@@ -7,6 +7,7 @@ const express = require("express")
 const fs = require("fs")
 const multer = require("multer")
 const path = require("path")
+const mime = require("mime-types");
 const port = 3000
 
 const app = express()
@@ -70,6 +71,76 @@ app.post("/generate-from-image", upload.single("image"), async (req, res) => {
     res.status(200).json({ output: text });
   } catch (error) {
     console.error("Error generating content:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const extractText = (result) =>  result.candidates?.[0]?.content?.parts?.[0]?.text || "No output";
+
+app.post("/generate-from-document", upload.single("document"), async (req, res) => {
+  const filePath = req.file.path;
+  const mimeType = req.file.mimetype;
+
+  const prompt = req.body.prompt ||  "Analyze this document:";
+
+  try {
+    const base64Data = fs.readFileSync(filePath).toString("base64");
+
+    const documentPart = {
+      inlineData: {
+        data: base64Data,
+        mimeType: mimeType,
+      },
+    };
+
+    const result = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: "user",
+          parts: [documentPart, { text: prompt }],
+        },
+      ],
+    });
+
+    const text = extractText(result);
+    res.status(200).json({ output: text });
+  } catch (error) {
+    console.error("Document processing error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/generate-from-audio", upload.single("audio"), async (req, res) => {
+  const filePath = req.file.path;
+  const mimeType = req.file.mimetype;
+
+  const prompt = req.body.prompt || "Transcribe or analyze the following audio:";
+
+  try {
+    const base64Data = fs.readFileSync(filePath).toString("base64");
+
+    const audioPart = {
+      inlineData: {
+        data: base64Data,
+        mimeType: mimeType,
+      },
+    };
+
+    const result = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: "user",
+          parts: [audioPart, { text: prompt }],
+        },
+      ],
+    });
+
+    const text = extractText(result);
+    res.status(200).json({ output: text });
+  } catch (error) {
+    console.error("Audio processing error:", error);
     res.status(500).json({ error: error.message });
   }
 });
